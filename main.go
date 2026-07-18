@@ -1,23 +1,19 @@
 package main
 
-import (
-	"io"
-	"log"
-	"net/http"
-)
+import "time"
 
 func main() {
-	res, err := http.Get("https://github.com/zrazhd/WebCrawler")
-	if err != nil {
-		log.Printf("Error with gettin HTTP: %s\n", err)
-	}
-	defer res.Body.Close()
+	url := "https://web3.career/graduate-junior-software-engineer-backend-elwoodtechnologies/151199"
 
-	htmlString, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Printf("Error with reading res body: %s\n", err)
-	}
-	// fmt.Println(string(htmlString))
+	wc := NewWebCrawler(50)
 
-	GetURL(string(htmlString))
+	wc.Start()
+
+	wc.URLs <- url
+
+	time.Sleep(time.Second * 5)
+
+	wc.SaveJob()
+	wc.Stop()
+
 }

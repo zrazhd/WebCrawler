@@ -1,0 +1,21 @@
+[
+     {
+         "title": "Graduate/Junior Software Engineer - Backend",
+         "hiringOrganization": {
+             "@type": "Organization",
+             "name": "Elwoodtechnologies"
+         },
+         "datePosted": "2026-07-09 19:41:20 +0100",
+         "description": "Job Title: Graduate Software Engineer - Backend   Starting Salary: £50,000  Location: London    As an FCA-regulated firm, Elwood Technologies provides institutional investors with a seamless, end-to-end digital asset trading, execution, and risk management infrastructure connected to global markets via a single API. To support the continued growth of this platform, we are now seeking a Graduate Software Engineer to join our backend engineering team. Job Description  Elwood is looking for a Graduate Software Engineer/Junior Software Engineer to join our Backend Engineering Team. The role will involve rotations across our internal teams within our Engineering department working on the Backend and Market Connectivity teams. These rotations will provide a wide range of industry leading technical skills and introduce graduates to all areas of the business enabling you to become an integral part of the Elwood ecosystem and learn about digital asset markets. If you are interested in pursuing a career in the world of digital assets then this offers a great opportunity to gain hands-on experience whilst commencing your career in Software Engineering.  Key Responsibilities Develop and enhance software access across the Elwood technology stack Work with business stakeholders to build new and maintain existing features. Meet deadlines in support of a fast-moving release cycle. Leverage new technologies and approaches with continuous improvement in mind. Work closely with Quants, Product, Algo Developers, Infrastructure and Support teams to deliver trading solutions. Contribute to all areas of software development lifecycle including design, development, integration, automated testing, and maintenance.   Qualifications / Knowledge Degree in a STEM discipline. 6 to 18 months experience as a Software Engineer (including similar internship or placement years) within financial markets and an understanding of a portfolio, execution, or order management system an advantage  Programming experience in an object oriented or functional programming language: C#, C++, Java, Python, Golang, Rust etc. Strong understanding of computer science fundamentals including design, algorithms, and data structures. Excellent analytical and problem-solving skills. Excellent verbal and written communication skills. A passion for a career in a FinTech environment, and genuine interest in the Crypto / Digital Assets space.   What we offer: 💵  Competitive salary and compensation packages 🍎 Fully paid medical and discounted dental schemes for employees and their family ✈️ Generous time off + bank holidays 🚲 Cycle to Work and Cycle Saver schemes 🍔 Fully stocked kitchen and access to weekly Ubereats allowance 💪 Discounted gym scheme 🐕‍ Employee Assistance Programme 📚 Paid study leave and personal leave Why Elwood?   Join a series A FinTech company  and help shape the future of finance A startup with deep financial backing and a strong market presence Our platform is enabling institutional access to the most exciting growth opportunity in Finance Work with a modern technology stack and help solve high impact problems Strong client focused team with a diverse background   We re a Global company and have modern, centrally based offices in London, New York and Singapore.    When applying, mention the word CANDYSHOP to show you read the job post completely. This is a beta feature to avoid spam applicants. Companies can search these words to find applicants that read this and see they are human RMTc4LjkxLjE4LjEwOQM",
+         "baseSalary": {
+             "@type": "MonetaryAmount",
+             "currency": "USD",
+             "value": {
+                 "@type": "QuantitativeValue",
+                 "minValue": 115000,
+                 "maxValue": 170000,
+                 "unitText": "YEAR"
+             }
+         }
+     }
+ ]
