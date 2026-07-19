@@ -3,17 +3,24 @@ package main
 import "time"
 
 func main() {
-	url := "https://web3.career/graduate-junior-software-engineer-backend-elwoodtechnologies/151199"
+	url1 := "https://www.golangprojects.com/golang-go-job-gxb-Remote-Europe-Senior-Software-Engineer-Cast-AI-remotework.html"
 
 	wc := NewWebCrawler(50)
 
 	wc.Start()
 
-	wc.URLs <- url
+	wc.URLs <- url1
 
-	time.Sleep(time.Second * 5)
-
-	wc.SaveJob()
+	time.Sleep(time.Second * 3)
 	wc.Stop()
+	wc.SaveJob()
 
 }
+
+// func main() {
+// 	url := "https://www.golangprojects.com/golang-go-job-gxb-Remote-Europe-Senior-Software-Engineer-Cast-AI-remotework.html"
+
+// 	tr := NewURLTracker()
+
+// 	ProccessHTML(getHTML(url), url, tr)
+// }

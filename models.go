@@ -37,6 +37,10 @@ type URLTracker struct {
 	mx      sync.Mutex
 }
 
+func NewURLTracker() *URLTracker {
+	return &URLTracker{visited: make(map[string]bool)}
+}
+
 type WebCrawler struct {
 	WorkersCount int
 	Jobs         chan Job
@@ -53,7 +57,7 @@ func NewWebCrawler(workers int) *WebCrawler {
 	return &WebCrawler{
 		WorkersCount: workers,
 		Jobs:         make(chan Job, workers),
-		URLs:         make(chan string, workers),
+		URLs:         make(chan string, workers*10),
 		Map:          URLTracker{make(map[string]bool), sync.Mutex{}},
 		ctx:          ctx,
 		cancel:       cancel,

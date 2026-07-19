@@ -16,7 +16,7 @@ import (
 func (wc *WebCrawler) Start() {
 	for i := 1; i <= wc.WorkersCount; i++ {
 		wc.wg.Add(1)
-		go wc.Work()
+		go wc.Work(i)
 	}
 }
 
@@ -30,7 +30,7 @@ func (tracker *URLTracker) Visit(url string) bool {
 	return false
 }
 
-func (wc *WebCrawler) Work() {
+func (wc *WebCrawler) Work(id int) {
 	defer wc.wg.Done()
 	for {
 		select {
@@ -43,7 +43,7 @@ func (wc *WebCrawler) Work() {
 				return
 			}
 
-			wc.ProccessHTML(getHTML(url), url)
+			wc.ProccessHTML(getHTML(url), url, id)
 			// wc.SaveJob()
 		}
 	}
@@ -52,8 +52,11 @@ func (wc *WebCrawler) Work() {
 func (wc *WebCrawler) Stop() {
 	close(wc.URLs)
 	wc.wg.Wait()
-	wc.SaveJob()
 	close(wc.Jobs)
+}
+
+func (wc *WebCrawler) Finish() {
+	wc.cancel()
 }
 
 func isTargetURL(url string) bool {
@@ -92,7 +95,7 @@ func parseHTMLToText(htmlString string) string {
 	return res
 }
 
-func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string) {
+func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) {
 
 	doc, err := html.Parse(strings.NewReader(htmlString))
 	if err != nil {
@@ -121,6 +124,7 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string) {
 						exists := wc.Map.Visit(fullURL.String())
 						if !exists {
 							wc.URLs <- fullURL.String()
+							fmt.Printf("Goroutine with id: %d записала данные в канал URLs\n", id)
 						}
 
 					}
@@ -132,13 +136,13 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string) {
 				for _, a := range n.Attr {
 					if a.Key == "type" && a.Val == "application/ld+json" {
 						isJSONLd = true
-						break
+						continue
 					}
 				}
 
 				if isJSONLd && n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
 					rawJSON = n.FirstChild.Data
-					break
+					continue
 				}
 			}
 		}
@@ -155,19 +159,21 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string) {
 			log.Printf("Error marshal json: %s", err)
 		}
 		job.Description = parseHTMLToText(job.Description)
-		wc.submitJob(job)
+		// wc.submitJob(job)
+		wc.Jobs <- job
+		fmt.Printf("Goroutine with id: %d записала данные в канал Jobs\n", id)
 	}
 
 }
 
-func (wc *WebCrawler) submitJob(job Job) {
-	select {
-	case <-wc.ctx.Done():
+// func (wc *WebCrawler) submitJob(job Job) {
+// 	select {
+// 	case <-wc.ctx.Done():
 
-	case wc.Jobs <- job:
+// 	case wc.Jobs <- job:
 
-	}
-}
+// 	}
+// }
 
 func getHTML(url string) string {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -195,4 +201,74 @@ func getHTML(url string) string {
 		return ""
 	}
 	return string(htmlString)
+}
+
+func ProccessHTML(htmlString string, urlString string, tracker *URLTracker) {
+
+	doc, err := html.Parse(strings.NewReader(htmlString))
+	if err != nil {
+		fmt.Printf("Error parse html: %s", err)
+	}
+
+	base, err := url.Parse(urlString)
+	if err != nil {
+		log.Printf("Error parse url: %s\n", err)
+	}
+	var job Job
+	job.URL = urlString
+	rawJSON := ""
+
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode {
+
+			if n.DataAtom == atom.A {
+				for _, a := range n.Attr {
+					if a.Key == "href" && isTargetURL(a.Val) {
+						path, err := url.Parse(a.Val)
+						if err != nil {
+							log.Printf("Error href: %s\n", err)
+						}
+						fullURL := base.ResolveReference(path)
+						fmt.Println(fullURL)
+						exists := tracker.Visit(fullURL.String())
+						if !exists {
+							// wc.URLs <- fullURL.String()
+							// fmt.Printf("Goroutine with id: %d записала данные в канал URLs\n", id)
+						}
+
+					}
+				}
+			}
+
+			if n.DataAtom == atom.Script && rawJSON == "" {
+				isJSONLd := false
+				for _, a := range n.Attr {
+					if a.Key == "type" && a.Val == "application/ld+json" {
+						isJSONLd = true
+						continue
+					}
+				}
+
+				if isJSONLd && n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
+					rawJSON = n.FirstChild.Data
+					continue
+				}
+			}
+		}
+	}
+
+	if rawJSON != "" {
+
+		if !strings.Contains(rawJSON, `"@type": "JobPosting"`) {
+			return
+		}
+
+		err = json.Unmarshal([]byte(rawJSON), &job)
+		if err != nil {
+			log.Printf("Error marshal json: %s", err)
+		}
+		job.Description = parseHTMLToText(job.Description)
+
+	}
+
 }
