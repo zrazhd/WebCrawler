@@ -121,11 +121,13 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) 
 	doc, err := html.Parse(strings.NewReader(htmlString))
 	if err != nil {
 		fmt.Printf("Error parse html: %s", err)
+		return
 	}
 
 	base, err := url.Parse(urlString)
 	if err != nil {
 		log.Printf("Error parse url: %s\n", err)
+		return
 	}
 	var job Job
 	job.URL = urlString
@@ -140,6 +142,7 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) 
 						path, err := url.Parse(a.Val)
 						if err != nil {
 							log.Printf("Error href: %s\n", err)
+							continue
 						}
 						fullURL := base.ResolveReference(path)
 						exists := wc.Map.Visit(fullURL.String())
@@ -177,17 +180,19 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) 
 func checkJSON(rawJSON string, job *Job, wc *WebCrawler, id int) {
 	if rawJSON != "" {
 
-		if !strings.Contains(rawJSON, `"@type": "JobPosting"`) {
+		if !strings.Contains(rawJSON, `"@type": "JobPosting"`) && !strings.Contains(rawJSON, `"@type":"JobPosting"`) {
 			return
 		}
 
 		err := json.Unmarshal([]byte(rawJSON), job)
 		if err != nil {
 			log.Printf("Error marshal json: %s", err)
+			return
 		}
 		parsedTime, err := parseDate(job.Date)
 		if err != nil {
 			log.Printf("Error with datePosted: %s", err)
+			return
 		}
 		if parsedTime.After(time.Now().AddDate(0, -3, 0)) {
 			job.Description = parseHTMLToText(job.Description)
@@ -223,7 +228,7 @@ func getHTML(url string) string {
 		log.Printf("Error creating request: %s", err)
 		return ""
 	}
-	req.Header.Set("User-Agent", "job-crawler/pet-projec")
+	req.Header.Set("User-Agent", "job-crawler/pet-project")
 
 	client := http.Client{Timeout: time.Second * 10}
 	res, err := client.Do(req)
