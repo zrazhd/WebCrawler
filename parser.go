@@ -144,8 +144,9 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) 
 						fullURL := base.ResolveReference(path)
 						exists := wc.Map.Visit(fullURL.String())
 						if !exists {
-							wc.submitURL(fullURL.String())
-							log.Printf("Goroutine with id: %d Wrote data in channel URLs\n", id)
+							if wc.submitURL(fullURL.String()) {
+								log.Printf("Goroutine with id: %d Wrote data in channel URLs\n", id)
+							}
 						}
 
 					}
@@ -190,28 +191,29 @@ func checkJSON(rawJSON string, job *Job, wc *WebCrawler, id int) {
 		}
 		if parsedTime.After(time.Now().AddDate(0, -3, 0)) {
 			job.Description = parseHTMLToText(job.Description)
-			wc.submitJob(*job)
-			log.Printf("Goroutine with id: %d wrote data in channel Jobs\n", id)
+			if wc.submitJob(*job) {
+				log.Printf("Goroutine with id: %d wrote data in channel Jobs\n", id)
+			}
 		}
 
 	}
 }
 
-func (wc *WebCrawler) submitJob(job Job) {
+func (wc *WebCrawler) submitJob(job Job) bool {
 	select {
 	case <-wc.ctx.Done():
-
+		return false
 	case wc.Jobs <- job:
-
+		return true
 	}
 }
 
-func (wc *WebCrawler) submitURL(url string) {
+func (wc *WebCrawler) submitURL(url string) bool {
 	select {
 	case <-wc.ctx.Done():
-
+		return false
 	case wc.URLs <- url:
-
+		return true
 	}
 }
 
