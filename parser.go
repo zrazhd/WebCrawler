@@ -5,15 +5,21 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+	"golang.org/x/time/rate"
 )
 
 func (wc *WebCrawler) Start() {
+	wc.wg.Add(1)
+	go wc.SaveJob()
+
 	for i := 1; i <= wc.WorkersCount; i++ {
 		wc.wg.Add(1)
 		go wc.Work(i)
@@ -35,24 +41,39 @@ func (wc *WebCrawler) Work(id int) {
 	for {
 		select {
 		case <-wc.ctx.Done():
-			log.Println("Work done due to context")
 			return
-		case url, ok := <-wc.URLs:
+		case u, ok := <-wc.URLs:
 			if !ok {
-				fmt.Println("Канал URLS закрыт")
+				fmt.Println("Channel URLs is closed")
 				return
 			}
 
-			wc.ProccessHTML(getHTML(url), url, id)
-			// wc.SaveJob()
+			parsed, err := url.Parse(u)
+			if err != nil {
+				continue
+			}
+
+			limiter := wc.limiter.GetLimitForHost(parsed.Host)
+			if err := limiter.Wait(wc.ctx); err != nil {
+				continue
+			}
+			delay := time.Duration(300+rand.Intn(400)) * time.Millisecond
+
+			select {
+			case <-time.After(delay):
+			case <-wc.ctx.Done():
+				return
+			}
+
+			wc.ProccessHTML(getHTML(u), u, id)
 		}
 	}
 }
 
 func (wc *WebCrawler) Stop() {
-	close(wc.URLs)
+	wc.cancel()
 	wc.wg.Wait()
-	close(wc.Jobs)
+
 }
 
 func (wc *WebCrawler) Finish() {
@@ -123,8 +144,8 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) 
 						fullURL := base.ResolveReference(path)
 						exists := wc.Map.Visit(fullURL.String())
 						if !exists {
-							wc.URLs <- fullURL.String()
-							fmt.Printf("Goroutine with id: %d записала данные в канал URLs\n", id)
+							wc.submitURL(fullURL.String())
+							log.Printf("Goroutine with id: %d Wrote data in channel URLs\n", id)
 						}
 
 					}
@@ -148,32 +169,51 @@ func (wc *WebCrawler) ProccessHTML(htmlString string, urlString string, id int) 
 		}
 	}
 
+	checkJSON(rawJSON, &job, wc, id)
+
+}
+
+func checkJSON(rawJSON string, job *Job, wc *WebCrawler, id int) {
 	if rawJSON != "" {
 
 		if !strings.Contains(rawJSON, `"@type": "JobPosting"`) {
 			return
 		}
 
-		err = json.Unmarshal([]byte(rawJSON), &job)
+		err := json.Unmarshal([]byte(rawJSON), job)
 		if err != nil {
 			log.Printf("Error marshal json: %s", err)
 		}
-		job.Description = parseHTMLToText(job.Description)
-		// wc.submitJob(job)
-		wc.Jobs <- job
-		fmt.Printf("Goroutine with id: %d записала данные в канал Jobs\n", id)
-	}
+		parsedTime, err := parseDate(job.Date)
+		if err != nil {
+			log.Printf("Error with datePosted: %s", err)
+		}
+		if parsedTime.After(time.Now().AddDate(0, -3, 0)) {
+			job.Description = parseHTMLToText(job.Description)
+			wc.submitJob(*job)
+			log.Printf("Goroutine with id: %d wrote data in channel Jobs\n", id)
+		}
 
+	}
 }
 
-// func (wc *WebCrawler) submitJob(job Job) {
-// 	select {
-// 	case <-wc.ctx.Done():
+func (wc *WebCrawler) submitJob(job Job) {
+	select {
+	case <-wc.ctx.Done():
 
-// 	case wc.Jobs <- job:
+	case wc.Jobs <- job:
 
-// 	}
-// }
+	}
+}
+
+func (wc *WebCrawler) submitURL(url string) {
+	select {
+	case <-wc.ctx.Done():
+
+	case wc.URLs <- url:
+
+	}
+}
 
 func getHTML(url string) string {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -183,7 +223,7 @@ func getHTML(url string) string {
 	}
 	req.Header.Set("User-Agent", "job-crawler/pet-projec")
 
-	client := http.Client{}
+	client := http.Client{Timeout: time.Second * 10}
 	res, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error client doesn't do request: %s", err)
@@ -203,72 +243,36 @@ func getHTML(url string) string {
 	return string(htmlString)
 }
 
-func ProccessHTML(htmlString string, urlString string, tracker *URLTracker) {
+func parseDate(date string) (time.Time, error) {
 
-	doc, err := html.Parse(strings.NewReader(htmlString))
-	if err != nil {
-		fmt.Printf("Error parse html: %s", err)
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05 -0700",
+		"2006-01-02T15:04:05-07:00",
+		"2006-01-02T15:04:05.999-07:00",
+		"2006-01-02",
 	}
 
-	base, err := url.Parse(urlString)
-	if err != nil {
-		log.Printf("Error parse url: %s\n", err)
-	}
-	var job Job
-	job.URL = urlString
-	rawJSON := ""
-
-	for n := range doc.Descendants() {
-		if n.Type == html.ElementNode {
-
-			if n.DataAtom == atom.A {
-				for _, a := range n.Attr {
-					if a.Key == "href" && isTargetURL(a.Val) {
-						path, err := url.Parse(a.Val)
-						if err != nil {
-							log.Printf("Error href: %s\n", err)
-						}
-						fullURL := base.ResolveReference(path)
-						fmt.Println(fullURL)
-						exists := tracker.Visit(fullURL.String())
-						if !exists {
-							// wc.URLs <- fullURL.String()
-							// fmt.Printf("Goroutine with id: %d записала данные в канал URLs\n", id)
-						}
-
-					}
-				}
-			}
-
-			if n.DataAtom == atom.Script && rawJSON == "" {
-				isJSONLd := false
-				for _, a := range n.Attr {
-					if a.Key == "type" && a.Val == "application/ld+json" {
-						isJSONLd = true
-						continue
-					}
-				}
-
-				if isJSONLd && n.FirstChild != nil && n.FirstChild.Type == html.TextNode {
-					rawJSON = n.FirstChild.Data
-					continue
-				}
-			}
+	for _, l := range layouts {
+		parsedDate, err := time.Parse(l, date)
+		if err == nil {
+			return parsedDate, nil
 		}
 	}
 
-	if rawJSON != "" {
+	return time.Time{}, fmt.Errorf("Wrong format of time")
 
-		if !strings.Contains(rawJSON, `"@type": "JobPosting"`) {
-			return
-		}
+}
 
-		err = json.Unmarshal([]byte(rawJSON), &job)
-		if err != nil {
-			log.Printf("Error marshal json: %s", err)
-		}
-		job.Description = parseHTMLToText(job.Description)
+func (hl *hostLimiter) GetLimitForHost(host string) *rate.Limiter {
+	hl.mx.Lock()
+	defer hl.mx.Unlock()
 
+	limiter, ok := hl.limiters[host]
+	if ok {
+		return limiter
 	}
-
+	limiter = rate.NewLimiter(rate.Every(time.Second*1), 1)
+	hl.limiters[host] = limiter
+	return limiter
 }

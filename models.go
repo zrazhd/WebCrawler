@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+
+	"golang.org/x/time/rate"
 )
 
 type Job struct {
@@ -12,7 +14,7 @@ type Job struct {
 	Date        string       `json:"datePosted"`
 	Description string       `json:"description"`
 	Salary      BaseSalary   `json:"baseSalary"`
-	URL         string       `json:"-"`
+	URL         string       `json:"URL"`
 }
 type Organization struct {
 	Type string `json:"@type"`
@@ -47,9 +49,10 @@ type WebCrawler struct {
 	URLs         chan string
 	Map          URLTracker
 
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cancel context.CancelFunc
+	wg      sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	limiter *hostLimiter
 }
 
 func NewWebCrawler(workers int) *WebCrawler {
@@ -57,9 +60,15 @@ func NewWebCrawler(workers int) *WebCrawler {
 	return &WebCrawler{
 		WorkersCount: workers,
 		Jobs:         make(chan Job, workers),
-		URLs:         make(chan string, workers*10),
+		URLs:         make(chan string, workers*5),
 		Map:          URLTracker{make(map[string]bool), sync.Mutex{}},
 		ctx:          ctx,
 		cancel:       cancel,
+		limiter:      &hostLimiter{limiters: make(map[string]*rate.Limiter)},
 	}
+}
+
+type hostLimiter struct {
+	mx       sync.Mutex
+	limiters map[string]*rate.Limiter
 }
